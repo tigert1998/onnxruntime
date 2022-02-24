@@ -35,7 +35,6 @@ class DequantizeWithOrder final : public CudaKernel {
  private:
   int order_input_;
   int order_output_;
-  ONNX_NAMESPACE::TensorProto_DataType to_;
 };
 
 class QOrderedMatMul final : public CudaKernel {
