@@ -1076,22 +1076,8 @@ If mask is provided, mask index (that is position of first 0 in mask, or number 
                                   .TypeConstraint("T", {"tensor(float)"}, "Constrain input and output types to float32 tensors.")
                                   .TypeAndShapeInferenceFunction(EmbedLayerNormalizationShapeInference));
 
-  static const char* Longformer_Attention_QOrdered_doc = R"DOC(
-Quantized version of Longformer Self Attention (using int8 with specific matrix Layout).
-Longformer Self Attention with a local context and a global context. Tokens attend locally: Each token
-attends to its W previous tokens and W succeding tokens with W being the window length. A selected few tokens
-attend globally to all other tokens.
-
-The attention mask is of shape (batch_size, sequence_length), where sequence_length is a multiple of 2W after padding.
-Mask value < 0 (like -10000.0) means the token is masked, 0 otherwise.
-
-Global attention flags have value 1 for the tokens attend globally and 0 otherwise.
-)DOC";
-
-  ONNX_CONTRIB_OPERATOR_SCHEMA(QOrderedLongformerAttention)
-      .SetDomain(kMSDomain)
-      .SinceVersion(1)
-      .SetDoc(Longformer_Attention_QOrdered_doc)
+  ONNX_MS_OPERATOR_SET_SCHEMA(QOrderedLongformerAttention, 1, OpSchema()
+      .SetDoc(R"DOC(Quantized version of Longformer Self Attention (using int8 with specific matrix Layout).)DOC")
       .Attr("num_heads", "Number of attention heads", AttributeProto::INT)
       .Attr("window", "One sided attention windows length W, or half of total window length", AttributeProto::INT)
       .Attr("order_input", "cublasLt order of input matrix", AttributeProto::INT)
@@ -1117,16 +1103,10 @@ Global attention flags have value 1 for the tokens attend globally and 0 otherwi
       .TypeConstraint("Q", {"tensor(int8)"}, "Constrain input and output types to int8 tensors.")
       .TypeConstraint("S", {"tensor(float)"}, "Constrain scales to float32 tensors.")
       .TypeConstraint("G", {"tensor(int32)"}, "Constrain to integer types")
-      .TypeAndShapeInferenceFunction(ONNX_NAMESPACE::propagateShapeAndTypeFromFirstInput);
+      .TypeAndShapeInferenceFunction(ONNX_NAMESPACE::propagateShapeAndTypeFromFirstInput));
 
-  static const char* QuantizeWithOrder_doc = R"DOC(
-Quantize input matrix to specific layout used in cublaslt.
-)DOC";
-
-  ONNX_CONTRIB_OPERATOR_SCHEMA(QuantizeWithOrder)
-      .SetDomain(kMSDomain)
-      .SinceVersion(1)
-      .SetDoc(QuantizeWithOrder_doc)
+  ONNX_MS_OPERATOR_SET_SCHEMA(QuantizeWithOrder, 1, OpSchema()
+      .SetDoc(R"DOC(Quantize input matrix to specific layout used in cublaslt.)DOC")
       .Attr("order_input", "cublasLt order of input matrix", AttributeProto::INT)
       .Attr("order_output", "cublasLt order of output matrix", AttributeProto::INT)
       .Input(0, "input", "TODO: input tensor of (ROWS, COLS). if less than 2d, will broadcast to (1, X). If 3d, it is treated as (B, ROWS, COS)", "F")
@@ -1142,16 +1122,10 @@ Quantize input matrix to specific layout used in cublaslt.
 
         auto& input_shape = getInputShape(ctx, 0);
         updateOutputShape(ctx, 0, input_shape);
-      });
+      }));
 
-  static const char* DequantizeWithOrder_doc = R"DOC(
-Dequantize input matrix to specific layout used in cublaslt. attr to specify output type, float16 or float32
-)DOC";
-
-  ONNX_CONTRIB_OPERATOR_SCHEMA(DequantizeWithOrder)
-      .SetDomain(kMSDomain)
-      .SinceVersion(1)
-      .SetDoc(DequantizeWithOrder_doc)
+  ONNX_MS_OPERATOR_SET_SCHEMA(DequantizeWithOrder, 1, OpSchema()
+      .SetDoc(R"DOC(Dequantize input matrix to specific layout used in cublaslt. attr to specify output type, float16 or float32)DOC")
       .Attr("order_input", "cublasLt order of input matrix", AttributeProto::INT)
       .Attr("order_output", "cublasLt order of output matrix", AttributeProto::INT)
       .Input(0, "input", "TODO: input tensor of (ROWS, COLS). if less than 2d, will broadcast to (1, X). If 3d, it is treated as (B, ROWS, COS)", "Q")
@@ -1167,12 +1141,10 @@ Dequantize input matrix to specific layout used in cublaslt. attr to specify out
 
         auto& input_shape = getInputShape(ctx, 0);
         updateOutputShape(ctx, 0, input_shape);
-      });
+      }));
 
-  ONNX_CONTRIB_OPERATOR_SCHEMA(QOrderedMatMul)
-      .SetDomain(kMSDomain)
-      .SinceVersion(1)
-      .SetDoc("QuantizeOrdereed MatMul")
+  ONNX_MS_OPERATOR_SET_SCHEMA(QOrderedMatMul, 1, OpSchema()
+      .SetDoc(R"DOC(Quantize MatMul with order.)DOC")
       .Attr("order_A", "cublasLt order of matrix A", AttributeProto::INT)
       .Attr("order_B", "cublasLt order of matrix B", AttributeProto::INT)
       .Attr("order_Y", "cublasLt order of matrix Y", AttributeProto::INT)
@@ -1187,7 +1159,7 @@ Dequantize input matrix to specific layout used in cublaslt. attr to specify out
       .TypeAndShapeInferenceFunction([](ONNX_NAMESPACE::InferenceContext& ctx) {
         propagateElemTypeFromInputToOutput(ctx, 0, 0);
         ONNX_NAMESPACE::matmulShapeInference(ctx, 0, 2);
-      });
+      }));
 
 }  // namespace contrib
 }  // namespace onnxruntime
