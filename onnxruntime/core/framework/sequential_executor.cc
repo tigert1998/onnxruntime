@@ -14,6 +14,7 @@
 #include "core/framework/session_state.h"
 #include "core/framework/op_kernel_context_internal.h"
 #include "core/framework/utils.h"
+#include "core/platform/env_var_utils.h"
 
 #ifdef USE_CUDA
 #include "core/providers/cuda/cuda_pch.h"
@@ -138,6 +139,8 @@ Status SequentialExecutor::Execute(const SessionState& session_state, const std:
   size_t input_activation_sizes = 0;
   size_t input_parameter_sizes = 0;
   size_t total_output_sizes = 0;
+
+  bool OrtCudaProviderDeviceSync = ParseEnvironmentVariableWithDefault<bool>("OrtCudaProviderDeviceSync", false);
 
   if (is_profiler_enabled) {
     tp = session_state.Profiler().Start();
@@ -369,7 +372,9 @@ Status SequentialExecutor::Execute(const SessionState& session_state, const std:
 #endif
 
 #ifdef USE_CUDA
-      cudaDeviceSynchronize();
+      if (OrtCudaProviderDeviceSync) {
+        cudaDeviceSynchronize();
+      }
 #endif
       session_state.Profiler().EndTimeAndRecordEvent(profiling::NODE_EVENT,
                                                      node_name_for_profiling + "_kernel_time",
