@@ -128,8 +128,8 @@ Status XNNPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
 
     if (!is_depthwise) new_node.AddAttribute("groups", group);
 
-    //Currently padding_mode is always 0 because all models converted from TF do not use SAME padding.
-    //Even if an original model uses TF SAME padding, it will be converted to NOTSET or VALID by TF2ONNX converter.
+    // Currently padding_mode is always 0 because all models converted from TF do not use SAME padding.
+    // Even if an original model uses TF SAME padding, it will be converted to NOTSET or VALID by TF2ONNX converter.
     if (auto_pad_str == "NOTSET") {
       new_node.AddAttribute("padding_mode", static_cast<int64_t>(0));
     } else if (auto_pad_str == "VALID") {
