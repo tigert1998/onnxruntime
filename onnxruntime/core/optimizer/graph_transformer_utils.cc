@@ -182,7 +182,7 @@ InlinedVector<std::unique_ptr<GraphTransformer>> GenerateTransformers(
 #ifdef USE_XNNPACK
       auto default_cpu_allocator = cpu_execution_provider.GetAllocator(0, OrtMemTypeDefault);
       transformers.emplace_back(std::make_unique<NhwcTransformer>(default_cpu_allocator));
-      transformers.emplace_back(std::make_unique<XnnPackTransformer>(default_cpu_allocator));
+      transformers.emplace_back(std::make_unique<XNNPackTransformer>(default_cpu_allocator));
 #endif
       transformers.emplace_back(std::make_unique<MatMulAddFusion>());
       transformers.emplace_back(std::make_unique<ReshapeFusion>());

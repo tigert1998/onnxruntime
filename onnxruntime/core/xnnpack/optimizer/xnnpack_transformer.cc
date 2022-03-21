@@ -18,7 +18,7 @@ using namespace onnx_layout_transformation;
 
 namespace onnxruntime {
 
-Status XnnPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* graph_level */, const logging::Logger&) const {
+Status XNNPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* graph_level */, const logging::Logger&) const {
   GraphViewer gv(main_graph);
   std::vector<NodeIndex> conv_nodes;
   for (auto& nodeRef : gv.Nodes()) {
