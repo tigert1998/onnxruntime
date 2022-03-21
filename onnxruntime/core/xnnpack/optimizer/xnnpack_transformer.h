@@ -14,10 +14,10 @@ namespace onnxruntime {
 
 Transformer a normal graph to XnnPack nodes
 */
-class XnnPackTransformer : public GraphTransformer {         
+class XnnPackTransformer : public GraphTransformer {
  public:
-  explicit XnnPackTransformer(AllocatorPtr cpu_allocator) noexcept 
-    : GraphTransformer("XnnPackTransformer"), cpu_allocator_(std::move(cpu_allocator)){};  
+  explicit XnnPackTransformer(AllocatorPtr cpu_allocator) noexcept
+      : GraphTransformer("XnnPackTransformer"), cpu_allocator_(std::move(cpu_allocator)){};
 
  private:
   Status ApplyImpl(Graph& graph, bool& modified, int graph_level, const logging::Logger& logger) const override;
