@@ -35,6 +35,7 @@ Status XnnPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
     ProtoHelperNodeContext nc(nodeRef);
     int64_t group = 1;
     OpNodeProtoHelper info(&nc);
+    ORT_RETURN_IF_ERROR(info.GetAttr<int64_t>("group", &group));
     auto X_input = info.GetInputType(0);
     auto weight_input = info.GetInputType(1);
     TensorShape weight_shape = utils::GetTensorShapeFromTensorShapeProto(weight_input->tensor_type().shape());
