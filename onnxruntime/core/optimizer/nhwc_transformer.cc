@@ -57,7 +57,8 @@ bool NhwcTransformer::IsConvSupportedByXNNPack(const Node& nodeRef, bool input_i
   if (group != 1 && group != input_channels) return false;
   std::string auto_pad_str;
   ORT_RETURN_FALSE_IF_ERROR(info.GetAttr<std::string>("auto_pad", &auto_pad_str));
-  if (auto_pad_str != "NOTSET" && auto_pad_str != "VALID" && auto_pad_str != "SAME") return false;
+  // Doesn't support SAME_UPPER/SAME_LOWER yet.
+  if (auto_pad_str != "NOTSET" && auto_pad_str != "VALID") return false;
   std::vector<int64_t> pads;
   Status st = info.GetAttrs<int64_t>("pads", pads);
   if (st.IsOK()) {
