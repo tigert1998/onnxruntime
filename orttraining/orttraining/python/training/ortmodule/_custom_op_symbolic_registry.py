@@ -482,3 +482,29 @@ def einsum(g, equation, tensor_list):
 
     return result
 # End of torch.einsum.
+
+# TODO: This copied from PyTorch's symbolic_opset9.py
+#       without the "ONNX_ATEN_FALLBACK" block
+@parse_args("v", "is", "v", "v", "f", "i")
+def layer_norm(g, input, normalized_shape, weight, bias, eps, cudnn_enable):
+    from torch.onnx.symbolic_opset9 import sub, sqrt, add, mul
+
+    axes = [-i for i in range(len(normalized_shape), 0, -1)]
+
+    two_cst = sym_help._generate_wrapped_number(g, 2.)
+    eps_cst = sym_help._generate_wrapped_number(g, eps)
+
+    mean = g.op("ReduceMean", input, axes_i=axes)
+    numerator = sub(g, input, mean)
+    # variance = e((x - e(x))^2), and (x - e(x)) is the numerator in the layer_norm formula
+    variance = g.op("ReduceMean", pow(g, numerator, two_cst), axes_i=axes)
+    denominator = sqrt(g, add(g, variance, eps_cst))
+
+    layer_norm = g.op("Div", numerator, denominator)
+
+    if not (weight is None or sym_help._is_none(weight)):
+        layer_norm = mul(g, layer_norm, weight)
+    if not (bias is None or sym_help._is_none(bias)):
+        layer_norm = add(g, layer_norm, bias)
+
+    return layer_norm

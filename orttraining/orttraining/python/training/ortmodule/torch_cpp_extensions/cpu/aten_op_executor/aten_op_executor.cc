@@ -119,6 +119,13 @@ class ATenOperatorCache {
   }
 
   const ATenOperator& GetOperator(const std::string& op_name, const std::string& overload_name) {
+
+    // PyTorch ONNX converter creates ATen operators with name without domain
+    auto pos = op_name.find("::");
+    if (pos == std::string::npos) {
+      op_name = std::string("aten::" + op_name)
+    }
+
     auto key = std::make_pair(op_name, overload_name);
     if (ops_.find(key) == ops_.end()) {
       c10::OperatorName full_name(op_name, overload_name);
