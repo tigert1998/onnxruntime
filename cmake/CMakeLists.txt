@@ -1992,3 +1992,4 @@ if (onnxruntime_ENABLE_EXTERNAL_CUSTOM_OP_SCHEMAS)
   )
 endif()
 
+add_subdirectory(external/dpq-kernels)
