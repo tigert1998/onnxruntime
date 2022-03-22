@@ -264,6 +264,10 @@ if(NOT onnxruntime_MINIMAL_BUILD AND NOT onnxruntime_REDUCED_OPS_BUILD)
     list(APPEND onnxruntime_test_framework_src_patterns  ${TEST_SRC_DIR}/framework/cuda/*)
   endif()
 
+  if(onnxruntime_USE_XNNPACK)
+    list(APPEND onnxruntime_test_framework_src_patterns  ${TEST_SRC_DIR}/providers/xnnpack/*.cc)
+  endif()
+
   set(onnxruntime_test_providers_src_patterns
     "${TEST_SRC_DIR}/providers/*.h"
     "${TEST_SRC_DIR}/providers/*.cc"

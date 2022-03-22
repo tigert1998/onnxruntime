@@ -2,7 +2,10 @@
 // Licensed under the MIT License.
 
 #include "xnnpack_onnx_defs.h"
+
 #include <onnx/defs/schema.h>
+
+#include <safeint/SafeInt.hpp>
 
 using namespace onnx;
 
@@ -12,32 +15,46 @@ namespace xnnpack {
 using ::ONNX_NAMESPACE::Common::StatusCategory;
 using ::ONNX_NAMESPACE::Common::StatusCode;
 
-static OnnxStatus ComputeOutputSizeSame(ptrdiff_t input_size, int stride, ptrdiff_t* output_size) {
-  if (stride == 0) {
-    *output_size = -1;
+OnnxStatus ComputeOutputSizeSame(ptrdiff_t input_size, uint32_t stride, ptrdiff_t* output_size) {
+  if (stride == 0 || input_size <= 0) {
     return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
   }
-  *output_size = input_size + stride - 1;
-  *output_size = *output_size / stride;
-  return ::ONNX_NAMESPACE::Common::Status::OK();
+  size_t r = static_cast<size_t>(input_size) + stride - 1;
+  if (r > static_cast<size_t>(std::numeric_limits<ptrdiff_t>::max())) {
+    return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+  }
+  *output_size = r / stride;
+  return OnnxStatus::OK();
 }
 
-static OnnxStatus ComputeOutputSizeValid(ptrdiff_t input_size, int stride, ptrdiff_t filter_size,
-                                         uint32_t dilation_rate, ptrdiff_t* output_size) {
-  if (stride == 0) {
-    *output_size = -1;
+OnnxStatus ComputeOutputSizeValid(ptrdiff_t input_size, uint32_t stride, ptrdiff_t filter_size, uint32_t dilation_rate,
+                                  ptrdiff_t* output_size) {
+  if (filter_size < 1) {
+    return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+  }
+  if (stride <= 0) {
     return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
   }
   if (dilation_rate > 1) {
-    filter_size = (filter_size - 1) * dilation_rate + 1;
-  }
-  if (input_size + 1 <= filter_size) {
-    *output_size = -1;
-    return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+    if (!SafeMultiply(filter_size - 1, dilation_rate, filter_size)) {
+      return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+    }
+    if (!SafeAdd(filter_size, 1, filter_size)) {
+      return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+    }
   }
 
-  *output_size = input_size - filter_size + stride;
-  *output_size = *output_size / stride;
+  if (!SafeSubtract(input_size, filter_size, input_size)) return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+  if (input_size < 1) {
+    return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+  }
+  if (!SafeAdd(input_size, stride, input_size)) {
+    return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+  }
+  if (!SafeDivide(input_size, stride, input_size)) {
+    return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
+  }
+  *output_size = input_size;
   return ::ONNX_NAMESPACE::Common::Status::OK();
 }
 
@@ -145,13 +162,11 @@ OnnxStatus XnnPackDepthwiseConvolution2dShapeInferImpl(const ::ONNX_NAMESPACE::T
   }
   int64_t filter_height = weight_shape.dim(1).dim_value();
   int64_t filter_width = weight_shape.dim(2).dim_value();
-#if 0
   int64_t input_channels_by_depth_multiplier = weight_shape.dim(3).dim_value();
   if (input_channels_by_depth_multiplier % input_C != 0) {
     return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL,
                       "The last dim of weight is not multiple of input channels.");
   }
-#endif
   input_H += static_cast<int64_t>(input_padding_top) + input_padding_bottom;
   input_W += static_cast<int64_t>(input_padding_right) + input_padding_left;
   ::ONNX_NAMESPACE::TensorShapeProto_Dimension* output_dims[4];

@@ -79,8 +79,6 @@ Status XNNPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
       return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Expect at least 2 inputs, got ", conv_node->InputDefs().size());
     }
 
-    // bool is_pointwise = weight_shape[2] == 1 && weight_shape[3] == 1;
-    // if (!is_pointwise) {
     std::vector<int64_t> input_perm = is_depthwise ? std::vector<int64_t>{1, 2, 3, 0} : std::vector<int64_t>{0, 2, 3, 1};
     std::string output_name = main_graph.GenerateNodeArgName("trans");
     NodeArg& transpose_output = main_graph.GetOrCreateNodeArg(output_name, nullptr);
@@ -114,7 +112,6 @@ Status XNNPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
     std::string node_name = conv_node->Name();
     Node& new_node = main_graph.AddNode(node_name, is_depthwise ? "XnnPackDepthwiseConvolution2d" : "XnnPackConvolution2d", "", conv_node->MutableInputDefs(), {},
                                         nullptr, "com.microsoft.xnnpack");
-    // TODO: I'm not quite sure which is top, which is left
     new_node.AddAttribute("input_padding_top", pads[0]);
     new_node.AddAttribute("input_padding_right", pads[3]);
     new_node.AddAttribute("input_padding_bottom", pads[2]);
@@ -147,7 +144,6 @@ Status XNNPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
       new_node.MutableInputDefs().push_back(bias_node_arg);
       new_node.MutableInputArgsCount().push_back(1);
     }
-    // bool fused = false;
 
     if (optimizer_utils::CheckOutputEdges(main_graph, new_node, 1)) {
       const auto& next_node = *(new_node.OutputNodesBegin());
