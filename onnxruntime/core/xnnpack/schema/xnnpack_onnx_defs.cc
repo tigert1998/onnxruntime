@@ -45,12 +45,13 @@ OnnxStatus ComputeOutputSizeValid(ptrdiff_t input_size, uint32_t stride, ptrdiff
   }
 
   if (!SafeSubtract(input_size, filter_size, input_size)) return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
-  if (input_size < 1) {
+  if (input_size < 0) {
     return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
   }
   if (!SafeAdd(input_size, stride, input_size)) {
     return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
   }
+  assert(input_size > 0);
   if (!SafeDivide(input_size, stride, input_size)) {
     return OnnxStatus(StatusCategory::NONE, StatusCode::FAIL);
   }

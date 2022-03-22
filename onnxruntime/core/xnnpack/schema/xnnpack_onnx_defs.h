@@ -12,6 +12,7 @@ namespace onnxruntime {
 constexpr const char* kXNNPackDomain = "com.microsoft.xnnpack";
 namespace xnnpack {
 using OnnxStatus = ::ONNX_NAMESPACE::Common::Status;
+// When this function returns OK, *output_size should equals to input_size whenever stride=1.
 OnnxStatus ComputeOutputSizeSame(ptrdiff_t input_size, uint32_t stride, ptrdiff_t* output_size);
 OnnxStatus ComputeOutputSizeValid(ptrdiff_t input_size, uint32_t stride, ptrdiff_t filter_size, uint32_t dilation_rate,
                                   ptrdiff_t* output_size);
