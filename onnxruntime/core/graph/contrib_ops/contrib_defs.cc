@@ -737,21 +737,20 @@ Some boolean parameters are passed by runtime input for generic purpose
       .Input(3, "kv_weight", "2D input tensor with shape (hidden_size, 2 * hidden_size)", "T")
       .Input(4, "bias", "1D input tensor with shape (3 * hidden_size)", "T")
       .Input(5, "key_padding_mask", "2D input tensor with shape (batch_size, total_sequence_length)", "B", OpSchema::Optional)
-      .Input(6, "key_cache", "input tensor with shape (batch_size, num_heads, sequence_length or total_sequence_length, head_size)", "T", OpSchema::Optional)   // self & cross
-      .Input(7, "value_cache", "input tensor with shape (batch_size, num_heads, sequence_length or total_sequence_length, head_size)", "T", OpSchema::Optional)   // self & cross
+      .Input(6, "key_cache", "input tensor with shape (batch_size, num_heads, sequence_length or total_sequence_length, head_size)", "T", OpSchema::Optional)    // self & cross
+      .Input(7, "value_cache", "input tensor with shape (batch_size, num_heads, sequence_length or total_sequence_length, head_size)", "T", OpSchema::Optional)  // self & cross
       .Input(8, "static_kv", "If static_kv = true, cross-attention; else self-attention", "B")
       .Input(9, "use_past", "If use_past = true, use cache; else no cache", "B")
       .Input(10, "has_layer_state", "If has_layer_state = true, layer_state = {} or [a,b]; else layer_state = None", "B")
       .Input(11, "has_key_padding_mask", "has_key_padding_mask or not", "B")
       .Output(0, "output", "3D output tensor with shape (sequence_length, batch_size, hidden_size)", "T")
-      .Output(1, "new_key_cache", "output tensor with shape (batch_size, num_heads, new sequence_length, head_size)", "T", OpSchema::Optional) // self & cross
-      .Output(2, "new_value_cache", "output tensor with shape (batch_size, num_heads, new sequence_length, head_size)", "T", OpSchema::Optional) // self & cross
+      .Output(1, "new_key_cache", "output tensor with shape (batch_size, num_heads, new sequence_length, head_size)", "T", OpSchema::Optional)    // self & cross
+      .Output(2, "new_value_cache", "output tensor with shape (batch_size, num_heads, new sequence_length, head_size)", "T", OpSchema::Optional)  // self & cross
       .TypeConstraint("T", {"tensor(float)", "tensor(float16)"}, "Constrain input and output types to float and float16 tensors.")
       .TypeConstraint("B", {"tensor(bool)"}, "Constrain key_padding_mask to bool tensors.")
       .TypeAndShapeInferenceFunction([](ONNX_NAMESPACE::InferenceContext& ctx) {
         DecoderAttentionTypeAndShapeInference(ctx);
       });
-
 
   static const char* EmbedLayerNormalization_ver1_doc = R"DOC(
 EmbedLayerNormalization is the fusion of embedding layer in BERT model, with optional mask processing.
@@ -2382,7 +2381,7 @@ Example 4:
                 output_counts = [1, 2, 2, 1]
               )DOC");
 
-  //see:https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
+  // see:https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
   ONNX_CONTRIB_OPERATOR_SCHEMA(CDist)
       .SetDomain(kMSDomain)
       .SinceVersion(1)
@@ -2747,12 +2746,12 @@ It's an extension of Gelu. It takes the sum of input A and bias input B as the i
   // Comment out docs not to increase the binary size
   //
   //  static const char* Inverse_ver1_doc = R"DOC(
-  //Calculates inverse of a square matrix or batches of square matrices.
-  //Inverse takes one input tensor of shape `[*, M, M]`, where `*` is zero or more batch dimensions,
-  //and the inner-most 2 dimensions form square matrices. These matrices must be invertible (full-rank).
-  //The behavior where one of the matrices is not invertible is undefined. The implementation can choose
-  //to throw an error or output (garbage) results as is. The output is a tensor of shape `[*, M, M]`,
-  //containing the individual inverses of all input submatrices.
+  // Calculates inverse of a square matrix or batches of square matrices.
+  // Inverse takes one input tensor of shape `[*, M, M]`, where `*` is zero or more batch dimensions,
+  // and the inner-most 2 dimensions form square matrices. These matrices must be invertible (full-rank).
+  // The behavior where one of the matrices is not invertible is undefined. The implementation can choose
+  // to throw an error or output (garbage) results as is. The output is a tensor of shape `[*, M, M]`,
+  // containing the individual inverses of all input submatrices.
   //)DOC";
 
   ONNX_CONTRIB_OPERATOR_SCHEMA(Inverse)
@@ -2795,6 +2794,69 @@ It's an extension of Gelu. It takes the sum of input A and bias input B as the i
 
           // Shape inference
           propagateShapeFromInputToOutput(ctx, 0, 0);
+        }
+      });
+
+  ONNX_CONTRIB_OPERATOR_SCHEMA(DPQConv2d)
+      .SetDomain(kMSDomain)
+      .SinceVersion(1)
+      .SetSupportLevel(OpSchema::SupportType::EXPERIMENTAL)
+      .Attr(
+          "kernel_size",
+          "",
+          AttributeProto::INTS,
+          OPTIONAL_VALUE)
+      .Attr(
+          "padding",
+          "",
+          AttributeProto::INTS,
+          OPTIONAL_VALUE)
+      .Attr(
+          "stride",
+          "",
+          AttributeProto::INTS,
+          OPTIONAL_VALUE)
+      .Input(0, "Input", "Input tensor.", "T1")
+      .Input(1, "Bias", "Bias tensor.", "T1")
+      .Input(2, "Centroids", "Centroids tensor.", "T1")
+      .Input(3, "LUT", "LUT tensor.", "T2")
+      .Input(4, "Scale", "Scale tensor.", "T1")
+      .Output(0, "Output", "Output tensor.", "T1")
+      .TypeConstraint(
+          "T1",
+          {"tensor(float)"},
+          "Constrain input, centroids, scale and output types to float tensors.")
+      .TypeConstraint(
+          "T2", {"tensor(int8)"}, "Constrain lut types to int8 tensors.")
+      .TypeAndShapeInferenceFunction([](ONNX_NAMESPACE::InferenceContext& ctx) {
+        // Type inference
+        using namespace ONNX_NAMESPACE;
+        propagateElemTypeFromInputToOutput(ctx, 0, 0);
+
+        // Shape inference
+        if (hasInputShape(ctx, 0) && hasInputShape(ctx, 1) && hasInputShape(ctx, 2) && hasInputShape(ctx, 3) && hasInputShape(ctx, 4)) {
+          const auto& input_shape =
+              ctx.getInputType(0)->tensor_type().shape();
+          const auto& lut_shape =
+              ctx.getInputType(3)->tensor_type().shape();
+          int64_t b = input_shape.dim(0).dim_value();
+          int64_t h = input_shape.dim(2).dim_value();
+          int64_t w = input_shape.dim(3).dim_value();
+          int64_t m = lut_shape.dim(2).dim_value();
+
+          auto kernel_size = ctx.getAttribute("kernel_size")->ints();
+          auto padding = ctx.getAttribute("padding")->ints();
+          auto stride = ctx.getAttribute("stride")->ints();
+
+          int64_t out_h = (h + 2 * padding[0] - kernel_size[0]) / stride[0] + 1;
+          int64_t out_w = (w + 2 * padding[1] - kernel_size[1]) / stride[1] + 1;
+
+          TensorShapeProto output_shape;
+          output_shape.add_dim()->set_dim_value(b);
+          output_shape.add_dim()->set_dim_value(m);
+          output_shape.add_dim()->set_dim_value(out_h);
+          output_shape.add_dim()->set_dim_value(out_w);
+          updateOutputShape(ctx, 0, output_shape);
         }
       });
 
