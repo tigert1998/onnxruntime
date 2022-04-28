@@ -82,10 +82,14 @@ class DPQConv2d final : public OpKernel {
               attrs_.stride[0], attrs_.stride[1],
               attrs_.padding[0], attrs_.padding[1],
               subvec_len, output_channels);
+          std::string lib_path = path + "/" + params.GetLibraryName() + ".so";
+          auto fp = fopen(lib_path.c_str(), "rb");
+          if (fp == nullptr) continue;
+          fclose(fp);
 
           if (ops_[params] != nullptr) continue;
           ops_[params].reset(new dpq_kernels::DPQConv2d(
-              path + "/" + params.GetLibraryName() + ".so",
+              lib_path,
               std::get<0>(params), std::get<1>(params), std::get<2>(params), std::get<3>(params),
               std::get<4>(params), std::get<5>(params), std::get<6>(params), std::get<7>(params),
               std::get<8>(params), std::get<9>(params), std::get<10>(params), std::get<11>(params)));
@@ -153,6 +157,7 @@ void DPQConv2d::ComputeImpl(const Tensor* input, const Tensor* bias, const Tenso
       attrs_.padding[0], attrs_.padding[1],
       subvec_len, m);
   auto op = ops_[params].get();
+  CHECK(op != nullptr);
   float bias_data = bias->Data<float>()[0];
   float scale_data = scale->Data<float>()[0];
 
