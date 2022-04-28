@@ -214,3 +214,5 @@ if (ARM64 OR ARM OR X86 OR X64 OR X86_64)
     list(APPEND onnxruntime_EXTERNAL_LIBRARIES cpuinfo clog)
   endif()
 endif()
+
+target_link_libraries(onnxruntime_common dpq-kernels)
