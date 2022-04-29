@@ -37,11 +37,16 @@ class DPQConv2d final : public OpKernel {
           k = centroids_shape.GetDims()[1],
           subvec_len_ = centroids_shape.GetDims()[2]);
 
-      float* buffer = (float*)alloc->Alloc(centroids_tensor.size());
+      float* buffer = (float*)alloc->Alloc(centroids_tensor.size() * sizeof(float));
       TensorMap<Eigen::Tensor<float, 4, RowMajor>> packed_y_tensor(buffer, ncodebooks_, k / 8, subvec_len_, 8);
+      packed_y_ = BufferUniquePtr(buffer, BufferDeleter(alloc));
       packed_y_tensor = centroids_tensor.reshape(array<int64_t, 4>{ncodebooks_, k / 8, 8, subvec_len_})
                             .shuffle(array<int, 4>{0, 1, 3, 2});
-      packed_y_ = BufferUniquePtr(buffer, BufferDeleter(alloc));
+
+      if (prepacked_weights != nullptr) {
+        prepacked_weights->buffers_.push_back(std::move(packed_y_));
+        prepacked_weights->buffer_sizes_.push_back(centroids_tensor.size());
+      }
     } else if (input_idx == 3) {
       is_packed = true;
       // lookup table
@@ -55,11 +60,16 @@ class DPQConv2d final : public OpKernel {
           k = lut_shape.GetDims()[1],
           output_channels_ = lut_shape.GetDims()[2]);
 
-      int8_t* buffer = (int8_t*)alloc->Alloc(lut_tensor.size());
+      int8_t* buffer = (int8_t*)alloc->Alloc(lut_tensor.size() * sizeof(int8_t));
       TensorMap<Eigen::Tensor<int8_t, 4, RowMajor>> packed_lut_tensor(buffer, output_channels_ / M, ncodebooks_, M, k);
       packed_lut_tensor = lut_tensor.reshape(array<int64_t, 4>{ncodebooks_, k, output_channels_ / M, M})
                               .shuffle(array<int, 4>{2, 0, 3, 1});
       packed_lut_ = BufferUniquePtr(buffer, BufferDeleter(alloc));
+
+      if (prepacked_weights != nullptr) {
+        prepacked_weights->buffers_.push_back(std::move(packed_lut_));
+        prepacked_weights->buffer_sizes_.push_back(lut_tensor.size());
+      }
     }
     return Status::OK();
   }
