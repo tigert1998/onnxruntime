@@ -15,6 +15,7 @@ namespace contrib {
 class DPQConv2d final : public OpKernel {
  private:
   BufferUniquePtr packed_y_, packed_lut_;
+  int64_t ncodebooks_, output_channels_, subvec_len_;
 
  public:
   Status PrePack(const Tensor& tensor, int input_idx, AllocatorPtr alloc,
@@ -29,16 +30,16 @@ class DPQConv2d final : public OpKernel {
 
       // centroids
       const auto& centroids_shape = tensor.Shape();
-      int64_t ncodebooks, k, subvec_len;
+      int64_t k;
       TensorMap<Eigen::Tensor<const float, 3, RowMajor>> centroids_tensor(
           tensor.Data<float>(),
-          ncodebooks = centroids_shape.GetDims()[0],
+          ncodebooks_ = centroids_shape.GetDims()[0],
           k = centroids_shape.GetDims()[1],
-          subvec_len = centroids_shape.GetDims()[2]);
+          subvec_len_ = centroids_shape.GetDims()[2]);
 
       float* buffer = (float*)alloc->Alloc(centroids_tensor.size());
-      TensorMap<Eigen::Tensor<float, 4, RowMajor>> packed_y_tensor(buffer, ncodebooks, k / 8, subvec_len, 8);
-      packed_y_tensor = centroids_tensor.reshape(array<int64_t, 4>{ncodebooks, k / 8, 8, subvec_len})
+      TensorMap<Eigen::Tensor<float, 4, RowMajor>> packed_y_tensor(buffer, ncodebooks_, k / 8, subvec_len_, 8);
+      packed_y_tensor = centroids_tensor.reshape(array<int64_t, 4>{ncodebooks_, k / 8, 8, subvec_len_})
                             .shuffle(array<int, 4>{0, 1, 3, 2});
       packed_y_ = BufferUniquePtr(buffer, BufferDeleter(alloc));
     } else if (input_idx == 3) {
@@ -47,16 +48,16 @@ class DPQConv2d final : public OpKernel {
 
       const auto& lut_shape = tensor.Shape();
       const int M = 2;
-      int64_t ncodebooks, k, output_channels;
+      int64_t k;
       TensorMap<Eigen::Tensor<const int8_t, 3, RowMajor>> lut_tensor(
           tensor.Data<int8_t>(),
-          ncodebooks = lut_shape.GetDims()[0],
+          ncodebooks_ = lut_shape.GetDims()[0],
           k = lut_shape.GetDims()[1],
-          output_channels = lut_shape.GetDims()[2]);
+          output_channels_ = lut_shape.GetDims()[2]);
 
       int8_t* buffer = (int8_t*)alloc->Alloc(lut_tensor.size());
-      TensorMap<Eigen::Tensor<int8_t, 4, RowMajor>> packed_lut_tensor(buffer, output_channels / M, ncodebooks, M, k);
-      packed_lut_tensor = lut_tensor.reshape(array<int64_t, 4>{ncodebooks, k, output_channels / M, M})
+      TensorMap<Eigen::Tensor<int8_t, 4, RowMajor>> packed_lut_tensor(buffer, output_channels_ / M, ncodebooks_, M, k);
+      packed_lut_tensor = lut_tensor.reshape(array<int64_t, 4>{ncodebooks_, k, output_channels_ / M, M})
                               .shuffle(array<int, 4>{2, 0, 3, 1});
       packed_lut_ = BufferUniquePtr(buffer, BufferDeleter(alloc));
     }
@@ -102,7 +103,7 @@ class DPQConv2d final : public OpKernel {
 
  private:
   void ComputeImpl(const Tensor* input, const Tensor* bias, const Tensor* scale,
-                   int64_t b, int64_t c, int64_t h, int64_t w, int64_t ncodebooks, int64_t m,
+                   int64_t b, int64_t c, int64_t h, int64_t w,
                    int8_t* index_data, Tensor* output) const;
 
   struct SimpleConvAttributes {
@@ -147,15 +148,15 @@ ONNX_OPERATOR_KERNEL_EX(
     DPQConv2d);
 
 void DPQConv2d::ComputeImpl(const Tensor* input, const Tensor* bias, const Tensor* scale,
-                            int64_t b, int64_t c, int64_t h, int64_t w, int64_t ncodebooks, int64_t m,
+                            int64_t b, int64_t c, int64_t h, int64_t w,
                             int8_t* index_data, Tensor* output) const {
-  int64_t subvec_len = c * attrs_.kernel_size[0] * attrs_.kernel_size[1] / ncodebooks;
+  int64_t subvec_len = c * attrs_.kernel_size[0] * attrs_.kernel_size[1] / ncodebooks_;
   DPQConv2dParams params(
       b, c, h, w,
       attrs_.kernel_size[0], attrs_.kernel_size[1],
       attrs_.stride[0], attrs_.stride[1],
       attrs_.padding[0], attrs_.padding[1],
-      subvec_len, m);
+      subvec_len, output_channels_);
   auto op = ops_[params].get();
   CHECK(op != nullptr);
   float bias_data = bias->Data<float>()[0];
@@ -173,13 +174,9 @@ void DPQConv2d::ComputeImpl(const Tensor* input, const Tensor* bias, const Tenso
 Status DPQConv2d::Compute(OpKernelContext* ctx) const {
   const Tensor* input = ctx->Input<Tensor>(0);
   const Tensor* bias = ctx->Input<Tensor>(1);
-  const Tensor* centroids = ctx->Input<Tensor>(2);
-  const Tensor* lut = ctx->Input<Tensor>(3);
   const Tensor* scale = ctx->Input<Tensor>(4);
 
   const auto& input_shape = input->Shape();
-  const auto& centroids_shape = centroids->Shape();
-  const auto& lut_shape = lut->Shape();
 
   int64_t b = input_shape.GetDims()[0];
   int64_t c = input_shape.GetDims()[1];
@@ -187,18 +184,16 @@ Status DPQConv2d::Compute(OpKernelContext* ctx) const {
   int64_t w = input_shape.GetDims()[3];
   int64_t out_h = (h + 2 * attrs_.padding[0] - attrs_.kernel_size[0]) / attrs_.stride[0] + 1;
   int64_t out_w = (w + 2 * attrs_.padding[1] - attrs_.kernel_size[1]) / attrs_.stride[1] + 1;
-  int64_t ncodebooks = centroids_shape.GetDims()[0];
-  int64_t m = lut_shape.GetDims()[2];
 
-  TensorShape output_shape({b, m, out_h, out_w});
+  TensorShape output_shape({b, output_channels_, out_h, out_w});
   Tensor* output = ctx->Output(0, output_shape);
 
   AllocatorPtr alloc;
   CHECK(ctx->GetTempSpaceAllocator(&alloc).IsOK());
-  int8_t* buffer = (int8_t*)alloc->Alloc(ncodebooks * b * h * w);
+  int8_t* buffer = (int8_t*)alloc->Alloc(ncodebooks_ * b * h * w);
   auto buffer_holder = BufferUniquePtr(buffer, BufferDeleter(alloc));
 
-  ComputeImpl(input, bias, scale, b, c, h, w, ncodebooks, m, buffer, output);
+  ComputeImpl(input, bias, scale, b, c, h, w, buffer, output);
 
   return Status::OK();
 }
