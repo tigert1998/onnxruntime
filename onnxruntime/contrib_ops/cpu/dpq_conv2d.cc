@@ -79,33 +79,15 @@ class DPQConv2d final : public OpKernel {
     ORT_ENFORCE(info.GetAttrs<int64_t>("padding", attrs_.padding).IsOK(), "");
     ORT_ENFORCE(info.GetAttrs<int64_t>("stride", attrs_.stride).IsOK(), "");
 
-    // initialize dpq functions
-    const std::string path = "/data/local/tmp/fused_dist_argmin_libs";
-
-    for (auto tuple : std::vector<std::tuple<int64_t, int64_t>>{{16, 32}, {32, 16}, {64, 8}}) {
-      int64_t channels, height;
-      std::tie(channels, height) = tuple;
-      for (int64_t output_channels : std::vector<int64_t>{channels, channels * 2}) {
-        for (int64_t subvec_len : std::vector<int64_t>{4, 9}) {
-          DPQConv2dParams params(
-              1, channels, height, height,
-              attrs_.kernel_size[0], attrs_.kernel_size[1],
-              attrs_.stride[0], attrs_.stride[1],
-              attrs_.padding[0], attrs_.padding[1],
-              subvec_len, output_channels);
-          std::string lib_path = path + "/" + params.GetLibraryName() + ".so";
-          auto fp = fopen(lib_path.c_str(), "rb");
-          if (fp == nullptr) continue;
-          fclose(fp);
-
-          if (ops_[params] != nullptr) continue;
-          ops_[params].reset(new dpq_kernels::DPQConv2d(
-              lib_path,
-              std::get<0>(params), std::get<1>(params), std::get<2>(params), std::get<3>(params),
-              std::get<4>(params), std::get<5>(params), std::get<6>(params), std::get<7>(params),
-              std::get<8>(params), std::get<9>(params), std::get<10>(params), std::get<11>(params)));
-        }
-      }
+    for (const auto& args : dpq_kernels::FusedDistArgmin::available_arguments()) {
+      int64_t output_channels = args[1] * attrs_.stride[0];
+      ops_[std::array<int64_t, 12>{args[0], args[1], args[2], args[3],
+                                   args[4], args[5], args[6], args[7],
+                                   args[8], args[9], args[10], output_channels}]
+          .reset(new dpq_kernels::DPQConv2d(
+              args[0], args[1], args[2], args[3],
+              args[4], args[5], args[6], args[7],
+              args[8], args[9], args[10], output_channels));
     }
   }
 
@@ -122,28 +104,14 @@ class DPQConv2d final : public OpKernel {
     std::vector<int64_t> stride;
   } attrs_;
 
-  using tuple_12_t = std::tuple<int64_t, int64_t, int64_t, int64_t,
-                                int64_t, int64_t, int64_t, int64_t,
-                                int64_t, int64_t, int64_t, int64_t>;
-  struct DPQConv2dParams : public tuple_12_t {
-    std::string GetLibraryName() {
-      using std::get;
-      return dpq_kernels::Format("b%ldc%ldh%ldw%ldkh%ldkw%ldsh%ldsw%ldph%ldpw%ldv%ld",
-                                 get<0>(*this), get<1>(*this), get<2>(*this), get<3>(*this),
-                                 get<4>(*this), get<5>(*this), get<6>(*this), get<7>(*this),
-                                 get<8>(*this), get<9>(*this), get<10>(*this));
-    }
-    using tuple_12_t::tuple;
-  };
-
   static std::map<
-      DPQConv2dParams,
+      std::array<int64_t, 12>,
       std::unique_ptr<dpq_kernels::DPQConv2d>>
       ops_;
 };
 
 std::map<
-    DPQConv2d::DPQConv2dParams,
+    std::array<int64_t, 12>,
     std::unique_ptr<dpq_kernels::DPQConv2d>>
     DPQConv2d::ops_ = {};
 
@@ -161,12 +129,12 @@ void DPQConv2d::ComputeImpl(const Tensor* input, const Tensor* bias, const Tenso
                             int64_t b, int64_t c, int64_t h, int64_t w,
                             int8_t* index_data, Tensor* output) const {
   int64_t subvec_len = c * attrs_.kernel_size[0] * attrs_.kernel_size[1] / ncodebooks_;
-  DPQConv2dParams params(
+  std::array<int64_t, 12> params = {
       b, c, h, w,
       attrs_.kernel_size[0], attrs_.kernel_size[1],
       attrs_.stride[0], attrs_.stride[1],
       attrs_.padding[0], attrs_.padding[1],
-      subvec_len, output_channels_);
+      subvec_len, output_channels_};
   auto op = ops_[params].get();
   CHECK(op != nullptr);
   float bias_data = bias->Data<float>()[0];
