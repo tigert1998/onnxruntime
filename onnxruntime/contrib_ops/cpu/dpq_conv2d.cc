@@ -52,7 +52,7 @@ class DPQConv2d final : public OpKernel {
       // lookup table
 
       const auto& lut_shape = tensor.Shape();
-      const int M = 2;
+      const int M = 1;
       int64_t k;
       TensorMap<Eigen::Tensor<const int8_t, 3, RowMajor>> lut_tensor(
           tensor.Data<int8_t>(),
